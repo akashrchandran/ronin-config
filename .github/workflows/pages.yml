@@ -1,0 +1,59 @@
+name: Deploy the configurator to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time: a second push supersedes the first.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+
+      # The app is plain static files, but it keeps its dev-server layout:
+      # the page lives in web/ and imports the shared modules from the
+      # directory above it, so the published root has to mirror evofox/.
+      - name: Assemble the site
+        run: |
+          mkdir -p site/web site/layout
+          cp -r evofox/web/. site/web/
+          cp evofox/protocol.js evofox/keys.js evofox/effects.js evofox/art.js site/
+          cp evofox/layout/*.json site/layout/
+          cat > site/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+          <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <meta http-equiv="refresh" content="0; url=./web/">
+          <title>Ronin Config</title>
+          </head>
+          <body>
+          <p><a href="./web/">Ronin Config — the EvoFox Ronin TKL configurator</a></p>
+          </body>
+          </html>
+          HTML
+          ls -R site | head -30
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
