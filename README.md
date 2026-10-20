@@ -15,8 +15,9 @@ gives you the parts the vendor app is missing.
 
 **Live:** <https://github.akashrchandran.in/ronin-config/> — the whole
 configurator, served from this repository by GitHub Pages. It talks to the
-keyboard over WebHID, so it needs Chrome or Edge; every other browser can
-reach the board through the local bridge (`npm run web`).
+keyboard over WebHID, so it needs Chrome or Edge. For any other browser, run
+the app from your own machine (`npm run web`): a page served over HTTPS
+cannot open the local bridge's plain WebSocket.
 
 ## What is here
 

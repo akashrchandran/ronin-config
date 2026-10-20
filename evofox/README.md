@@ -22,9 +22,10 @@ modules it imports from the directory above it, so the published site mirrors
 the layout the local server uses.
 
 On the hosted page the **Connect** button talks to the keyboard over WebHID,
-which needs Chrome or Edge. The **Bridge** button still reaches a bridge
-running on your own machine — the page falls back to `ws://localhost:5173`
-once it is not served from that machine's own server.
+which needs Chrome or Edge. The local bridge is not offered there: it speaks
+a plain WebSocket, and a page served over HTTPS may not open one — the
+browser blocks it as mixed content. Open the app from your own machine
+(`npm run web`) to use another browser.
 
 ## Quick start
 

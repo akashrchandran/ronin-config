@@ -23,6 +23,9 @@ import { ReactionGame } from './games/reaction.js';
 const $ = selector => document.querySelector(selector);
 const $$ = selector => Array.from(document.querySelectorAll(selector));
 
+/** True when the app is served from the user's own machine, not from Pages. */
+const isLocalPage = ['localhost', '127.0.0.1'].includes(location.hostname);
+
 const state = {
   transport: null,
   device: null,
@@ -1613,8 +1616,22 @@ async function boot() {
   state.board = buildBoard(state.layout, new Array(P.KEYMAP_SLOTS).fill({ type: 0, code1: 0, code2: 0 }));
   state.macros = loadLocalMacros() || state.macros;
   renderAll();
+  if (!isLocalPage) {
+    // The local bridge speaks a plain WebSocket, and a page served over
+    // HTTPS may not open one, so the bridge is only offered when the app
+    // is served from the user's own machine.
+    $('#gate-bridge').hidden = true;
+    $('#bridge-btn').hidden = true;
+    $('#gate-note').innerHTML =
+      'Chrome and Edge reach the board directly over WebHID. This page is served from ' +
+      'GitHub Pages, so the local bridge cannot be reached from it &mdash; open the app ' +
+      'from your own machine (<code>npm run web</code>) to use another browser.';
+  }
   if (!('hid' in navigator)) {
-    toast('WebHID is unavailable here. Use the local bridge button.', 'error');
+    toast(isLocalPage
+      ? 'WebHID is unavailable here. Use the local bridge button.'
+      : 'WebHID is unavailable here. Open the app from your own machine (npm run web).',
+      'error');
   }
 }
 

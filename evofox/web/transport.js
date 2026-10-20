@@ -95,16 +95,14 @@ export class WebHidTransport {
 /**
  * Where the local bridge lives.
  *
- * Served by the project's own server, the page and the bridge share an
- * origin. Served from GitHub Pages there is no WebSocket server there, but
- * the bridge still runs on the user's machine, on the port `npm run web`
- * uses.
+ * The project's own server serves the page and the WebSocket from the same
+ * origin, so that is where the bridge is. A page served from GitHub Pages
+ * has no WebSocket server, and a page served over HTTPS may not open a
+ * plain one to localhost either, so the app only offers the bridge when it
+ * is served locally.
  */
 export function defaultBridgeUrl() {
-  if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-    return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/bridge`;
-  }
-  return 'ws://localhost:5173/bridge';
+  return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/bridge`;
 }
 
 export class BridgeTransport {
