@@ -13,6 +13,11 @@ gives you the parts the vendor app is missing.
 
 **Unofficial.** Not made, endorsed or supported by the hardware manufacturer.
 
+**Live:** <https://github.akashrchandran.in/ronin-config/> — the whole
+configurator, served from this repository by GitHub Pages. It talks to the
+keyboard over WebHID, so it needs Chrome or Edge; every other browser can
+reach the board through the local bridge (`npm run web`).
+
 ## What is here
 
 | Path | |

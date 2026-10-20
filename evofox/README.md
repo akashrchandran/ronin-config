@@ -13,6 +13,19 @@ keyboard over **WebHID**; the only network calls the app makes are for static
 assets (keyboard-layout JSON, i18n strings, firmware binaries). All device
 traffic is described below.
 
+## The hosted app
+
+The configurator is also served from this repository:
+<https://github.akashrchandran.in/ronin-config/>. The Pages workflow
+(`.github/workflows/pages.yml`) assembles `web/` together with the shared
+modules it imports from the directory above it, so the published site mirrors
+the layout the local server uses.
+
+On the hosted page the **Connect** button talks to the keyboard over WebHID,
+which needs Chrome or Edge. The **Bridge** button still reaches a bridge
+running on your own machine — the page falls back to `ws://localhost:5173`
+once it is not served from that machine's own server.
+
 ## Quick start
 
 ```bash
