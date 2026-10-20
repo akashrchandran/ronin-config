@@ -27,6 +27,10 @@ a plain WebSocket, and a page served over HTTPS may not open one — the
 browser blocks it as mixed content. Open the app from your own machine
 (`npm run web`) to use another browser.
 
+Every local URL the site serves carries the build id, so a browser can never
+mix a fresh script with a module it cached from an earlier deploy, and the
+top bar shows which build is loaded (`build 71a6176`).
+
 ## Quick start
 
 ```bash
@@ -533,11 +537,11 @@ a game switches it and puts the previous effect back when it stops.
 
 **When a game ends, the whole board flashes red.** The snake hits a wall, the
 memory game gets a key wrong, the reaction round runs out of targets, or the
-lights-out puzzle is solved: the table goes all red and blinks, so the board
-itself says the game is over instead of the browser window. The flash keeps
-going until **Stop** hands the board back to the lighting. The blink is paced
-by the writes themselves — a full table takes about 160 ms to send, so the
-flash alternates roughly every 200 ms.
+lights-out puzzle is solved: the table goes all red and blinks three times,
+so the board itself says the game is over instead of the browser window.
+The flash runs on its own clock, not the game's, so the pulses are the same
+length whatever the game's speed is, and it hands the board back to the
+lighting when it is done.
 
 | Game | Rules |
 |---|---|

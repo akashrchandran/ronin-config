@@ -660,8 +660,12 @@ let gameTimer = null;
 let gameRestore = null;
 let currentGame = 'snake';
 
-/** The game-over flash: every key red, blinking, until the player stops it. */
+/** The game-over signal: the whole board red, blinking. */
 const GAME_OVER_COLOUR = '#ff0000';
+/** How many times the board blinks when a game ends. */
+const FLASH_BLINKS = 3;
+/** How long each half of a blink lasts. */
+const FLASH_PHASE_MS = 350;
 /** The phases a game ends in: the snake and memory die, lights out is solved. */
 const GAME_END_PHASES = new Set(['over', 'solved']);
 let gameFinished = false;
@@ -726,8 +730,7 @@ function updateGameInfo() {
   $('#game-score').textContent = `${info.score}${info.unit || ''}`;
   $('#game-status').textContent = info.text;
   if (gameFinished) {
-    $('#game-hint').textContent =
-      'The board is flashing: the game is over. Press Stop to hand it back to the lighting.';
+    $('#game-hint').textContent = 'The board is flashing red: the game is over.';
   }
 }
 
@@ -776,35 +779,63 @@ async function writeColourTable(colours) {
 
 async function gameTick() {
   if (!game) return;
-  if (gameFinished) {
-    // The game is over and the board is flashing: keep the blink going.
-    flashOn = !flashOn;
-  } else {
-    game.tick();
-    if (GAME_END_PHASES.has(game.phase)) {
-      gameFinished = true;
-      flashOn = true;
-    }
-  }
+  game.tick();
   renderGame();
   updateGameInfo();
+  if (GAME_END_PHASES.has(game.phase)) {
+    // The game is over: flash the board, then hand it back to the lighting.
+    gameFinished = true;
+    updateGameInfo();
+    await flashGameOver();
+    await stopGame();
+    return;
+  }
   if (state.transport) await writeColourTable(gameColours());
   scheduleGame();
 }
 
+/**
+ * The game-over signal: the whole board red, blinking three times.
+ *
+ * It runs on its own clock, not on the game's, so the pulses are the same
+ * length whatever the game's speed is, and it stops the game while it runs
+ * so nothing else writes the table.
+ */
+async function flashGameOver() {
+  clearTimeout(gameTimer);
+  gameTimer = null;
+  for (let blink = 0; blink < FLASH_BLINKS; blink++) {
+    for (const on of [true, false]) {
+      flashOn = on;
+      renderGame();
+      if (state.transport) await writeColourTable(gameColours());
+      await sleep(FLASH_PHASE_MS);
+    }
+  }
+  flashOn = false;
+}
+
 function scheduleGame() {
   clearTimeout(gameTimer);
-  // The flash writes the whole board every time, so it runs on its own
-  // clock: the write itself sets the pace of the blink.
-  const delay = gameFinished ? 30 : (Number($('#game-speed').value) || 150);
-  gameTimer = setTimeout(gameTick, delay);
+  gameTimer = setTimeout(gameTick, Number($('#game-speed').value) || 150);
+}
+
+/** Read the lighting settings of the current profile straight from the keyboard. */
+async function readFuncInfo() {
+  const offset = P.PROFILE_OFFSETS[state.profile] ?? 0;
+  const payload = await serialise(() => state.transport.send(0, P.CMD.GET_FUNC_INFO, 56,
+    [offset & 0xff, (offset >> 8) & 0xff, 0]));
+  return P.parseFuncInfo(payload);
 }
 
 async function startGame() {
   if (!state.transport) return toast('Connect the keyboard first.', 'error');
   const field = gameField();
   if (!field) return toast('The keyboard has no colour slots to play on.', 'error');
-  gameRestore = state.func ? { ...state.func } : null;
+  // What the keyboard has right now is what has to come back when the game
+  // stops, so ask it rather than trusting the copy the app holds.
+  state.func = await readFuncInfo();
+  gameRestore = { ...state.func };
   game = GAMES[currentGame].create(field);
   game.start();
   gameFinished = false;
@@ -834,6 +865,9 @@ async function stopGame() {
       const current = state.func;
       state.func = { ...current, ...gameRestore };
       await applyLighting();
+      // Check the keyboard really took it, and write once more if it did not.
+      const check = await readFuncInfo();
+      if (check.lightMode !== gameRestore.lightMode) await applyLighting();
       state.func = current;
     }
   }
@@ -1608,6 +1642,21 @@ function wire() {
   });
 }
 
+/**
+ * Show which build is loaded.
+ *
+ * A page left open across a deploy keeps the modules it loaded, so this
+ * says whether what is on screen is what the repository holds now.
+ */
+async function showBuild() {
+  try {
+    const build = await fetch('../build.json', { cache: 'no-store' }).then(r => r.json());
+    if (build.sha) $('#app-build').textContent = `0x320F:0x5055 · build ${build.sha}`;
+  } catch {
+    // Served by the local server, which has no build file.
+  }
+}
+
 async function boot() {
   wire();
   const vendorLayout = await fetch('../layout/320f_5055_2.json').then(r => r.json());
@@ -1616,6 +1665,7 @@ async function boot() {
   state.board = buildBoard(state.layout, new Array(P.KEYMAP_SLOTS).fill({ type: 0, code1: 0, code2: 0 }));
   state.macros = loadLocalMacros() || state.macros;
   renderAll();
+  showBuild();
   if (!isLocalPage) {
     // The local bridge speaks a plain WebSocket, and a page served over
     // HTTPS may not open one, so the bridge is only offered when the app

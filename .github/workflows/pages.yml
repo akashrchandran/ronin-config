@@ -31,10 +31,22 @@ jobs:
       # directory above it, so the published root has to mirror evofox/.
       - name: Assemble the site
         run: |
+          SHA=${GITHUB_SHA::7}
           mkdir -p site/web site/layout
           cp -r evofox/web/. site/web/
           cp evofox/protocol.js evofox/keys.js evofox/effects.js evofox/art.js site/
           cp evofox/layout/*.json site/layout/
+
+          # Every local URL gets the build id, so a browser can never mix a
+          # fresh script with a module it cached from an earlier deploy.
+          find site -name '*.html' -o -name '*.js' | xargs sed -i -E \
+            -e "s#(from ')([^']+\.js)(')#\1\2?v=$SHA\3#g" \
+            -e "s#(src=\")([^\"]+\.js)(\")#\1\2?v=$SHA\3#g" \
+            -e "s#(href=\")([^\"]+\.css)(\")#\1\2?v=$SHA\3#g" \
+            -e "s#(fetch\(')([^']+\.json)(')#\1\2?v=$SHA\3#g"
+
+          printf '{"sha": "%s", "built": "%s"}\n' "$SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > site/build.json
+
           cat > site/index.html <<'HTML'
           <!doctype html>
           <html lang="en">
@@ -49,6 +61,7 @@ jobs:
           </body>
           </html>
           HTML
+          grep -rn "from '" site/web/app.js | head -5
           ls -R site | head -30
 
       - uses: actions/upload-pages-artifact@v3
