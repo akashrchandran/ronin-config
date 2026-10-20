@@ -1,0 +1,17 @@
+# dependencies
+node_modules/
+
+# The vendor's own configurator bundle: kept as local evidence for the
+# protocol analysis, not redistributed. See evofox/README.md.
+evofox/js/
+
+# local tooling configuration
+.codex/
+.cursor/
+.gemini/
+.impeccable/
+
+# editors and operating systems
+.DS_Store
+Thumbs.db
+*.swp

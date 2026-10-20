@@ -1,0 +1,25 @@
+{
+  "name": "evofox-ronin",
+  "version": "1.0.0",
+  "description": "Reverse-engineered client and web configurator for the EvoFox Ronin TKL HID configuration protocol",
+  "type": "module",
+  "main": "ronin.js",
+  "bin": {
+    "ronin": "cli.js",
+    "ronin-mcp": "mcp/server.js"
+  },
+  "license": "MIT",
+  "scripts": {
+    "verify": "node verify.js",
+    "web": "node web/serve.js",
+    "mcp": "node mcp/server.js",
+    "test:mcp": "node mcp/smoke.test.mjs",
+    "test:mcp:live": "node mcp/live.test.mjs",
+    "test:mcp:grid": "node mcp/grid.test.mjs",
+    "test:game": "node games.test.mjs"
+  },
+  "dependencies": {
+    "node-hid": "^3.1.2",
+    "ws": "^8.22.0"
+  }
+}

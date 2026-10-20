@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RONIN CONFIG</title>
+<link rel="stylesheet" href="./fonts.css">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <div>
+      <strong>RONIN CONFIG</strong>
+      <span>0x320F:0x5055 · unofficial</span>
+    </div>
+  </div>
+
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button class="tab" role="tab" id="tab-keys" aria-controls="panel-keys" data-panel="keys" aria-selected="true">Keys</button>
+    <button class="tab" role="tab" id="tab-lighting" aria-controls="panel-lighting" data-panel="lighting" aria-selected="false">Lighting</button>
+    <button class="tab" role="tab" id="tab-game" aria-controls="panel-game" data-panel="game" aria-selected="false">Game</button>
+    <button class="tab" role="tab" id="tab-macros" aria-controls="panel-macros" data-panel="macros" aria-selected="false">Macros</button>
+    <button class="tab" role="tab" id="tab-device" aria-controls="panel-device" data-panel="device" aria-selected="false">Device</button>
+  </nav>
+
+  <div class="topbar-actions">
+    <div class="device-chip" id="device-chip">
+      <span class="dot"></span>
+      <span id="device-chip-text">not connected</span>
+    </div>
+    <button class="btn btn-primary" id="connect-btn">Connect</button>
+    <button class="btn btn-ghost" id="bridge-btn" title="Use the local bridge (works in any browser)">Bridge</button>
+  </div>
+</header>
+
+<main class="layout">
+  <aside class="rail">
+    <section class="section">
+      <h3>Device</h3>
+      <dl class="kv" id="device-kv">
+        <dt>Status</dt><dd id="d-status">disconnected</dd>
+        <dt>Product</dt><dd id="d-product">—</dd>
+        <dt>Firmware</dt><dd id="d-firmware">—</dd>
+        <dt>Protocol</dt><dd id="d-protocol">—</dd>
+        <dt>Transport</dt><dd id="d-transport">—</dd>
+      </dl>
+    </section>
+
+    <section class="section">
+      <h3>Layer</h3>
+      <div class="layers" id="layer-switch"></div>
+      <p class="tiny faint" style="margin-top:8px" id="layer-note">Layer 0 is the base map.</p>
+    </section>
+
+    <section class="section">
+      <h3>Unsaved</h3>
+      <div class="card" id="dirty-card">
+        <p class="tiny dim" id="dirty-text">Nothing pending.</p>
+        <div class="row" style="margin-top:10px">
+          <button class="btn btn-sm grow" id="apply-layer-btn">Apply layer</button>
+          <button class="btn btn-sm btn-ghost" id="revert-layer-btn">Revert</button>
+        </div>
+        <p class="tiny faint" style="margin-top:8px">Writes go straight to the keyboard over HID.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <h3>Profile</h3>
+      <div class="card">
+        <div class="row">
+          <button class="btn btn-sm grow" id="export-btn">Export</button>
+          <button class="btn btn-sm grow" id="import-btn">Import</button>
+        </div>
+        <input type="file" id="import-file" accept="application/json" hidden>
+        <p class="tiny faint" style="margin-top:8px">Layers, lighting, colours and macros as JSON.</p>
+      </div>
+    </section>
+  </aside>
+
+  <section class="stage">
+
+    <div class="gate" id="gate">
+      <div class="gate-text">
+        <strong>Connect the keyboard</strong>
+        <p>Chrome and Edge reach the board directly over WebHID. Every other browser needs the
+           local bridge, so run <code>npm run web</code> in the project folder first.</p>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary" id="gate-connect">Connect</button>
+        <button class="btn" id="gate-bridge">Use the bridge</button>
+      </div>
+    </div>
+
+    <!-- KEYS -->
+    <div class="panel is-active" id="panel-keys" role="tabpanel" aria-labelledby="tab-keys" data-panel="keys">
+      <div class="split">
+        <div>
+          <div class="card" style="margin-bottom:12px">
+            <div class="card-title">
+              <h2 id="board-title">Layer 0</h2>
+              <div class="row">
+                <label class="tiny dim" style="display:flex;gap:6px;align-items:center">
+                  <input type="checkbox" id="diff-toggle"> show remapped keys
+                </label>
+                <button class="btn btn-sm btn-ghost" id="refresh-btn">Refresh</button>
+              </div>
+            </div>
+            <div class="loading" id="board-loading" hidden>
+              <span class="bar" aria-hidden="true"></span>
+              <span id="board-loading-text">Reading the keyboard…</span>
+            </div>
+            <div class="board-wrap"><div class="board" id="board"></div></div>
+            <p class="tiny faint" id="board-note" style="margin-top:10px"></p>
+          </div>
+        </div>
+
+        <aside class="inspector">
+          <div class="card">
+            <div class="card-title">
+              <h2 id="inspector-title">Key</h2>
+              <span class="mono tiny faint" id="inspector-slot"></span>
+            </div>
+            <p class="mono" id="inspector-current" style="margin-bottom:12px"></p>
+
+            <div class="seg" id="type-switch" role="group" aria-label="Assignment type">
+              <button data-type="basic" aria-pressed="true">Basic</button>
+              <button data-type="media" aria-pressed="false">Media</button>
+              <button data-type="mouse" aria-pressed="false">Mouse</button>
+              <button data-type="advanced" aria-pressed="false">Advanced</button>
+              <button data-type="power" aria-pressed="false">Power</button>
+              <button data-type="macro" aria-pressed="false">Macro</button>
+              <button data-type="fn" aria-pressed="false">Fn</button>
+              <button data-type="clear" aria-pressed="false">Clear</button>
+            </div>
+
+            <div class="modifiers" id="modifier-toggles"></div>
+
+            <input class="picker-search" type="search" id="picker-search" placeholder="Search keys" autocomplete="off">
+            <div class="keylist" id="picker-list"></div>
+
+            <div class="row" style="margin-top:12px">
+              <button class="btn btn-sm btn-danger grow" id="clear-key-btn">Clear this key</button>
+            </div>
+          </div>
+
+          <div class="card" id="extra-slots-card" hidden>
+            <div class="card-title"><h2>Keys without a layout entry</h2></div>
+            <p class="tiny faint" style="margin-bottom:8px" id="extra-note"></p>
+            <div class="scroll-list" id="extra-slots"></div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- LIGHTING -->
+    <div class="panel" id="panel-lighting" role="tabpanel" aria-labelledby="tab-lighting" data-panel="lighting">
+      <div class="split">
+        <div>
+          <div class="card" style="margin-bottom:12px">
+            <div class="card-title">
+              <h2>Backlight effect</h2>
+              <button class="btn btn-sm btn-primary" id="apply-lighting-btn">Apply lighting</button>
+            </div>
+            <div class="effects" id="effect-list"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">
+              <h2>Per-key colours</h2>
+              <div class="row">
+                <label class="tiny dim" style="display:flex;gap:6px;align-items:center">
+                  <input type="checkbox" id="custom-mode-toggle" checked> Custom mode
+                </label>
+                <button class="btn btn-sm btn-ghost" id="clear-colors-btn">Clear all</button>
+                <button class="btn btn-sm btn-primary" id="apply-colors-btn">Apply colours</button>
+              </div>
+            </div>
+            <div class="row" style="margin-bottom:12px; flex-wrap:wrap">
+              <input type="color" id="color-picker" value="#e5484d" aria-label="Selected colour">
+              <div class="swatches" id="color-presets"></div>
+              <span class="tiny faint" id="color-readout">#e5484d</span>
+            </div>
+            <div class="row image-row">
+              <label class="btn btn-sm" for="colour-image">Load image</label>
+              <input type="file" id="colour-image" accept="image/*" hidden>
+              <select id="colour-image-fit" aria-label="How the image is mapped to the board">
+                <option value="fit">Fit</option>
+                <option value="fill">Fill</option>
+              </select>
+              <span class="tiny faint" id="colour-image-name">No image loaded</span>
+            </div>
+            <div class="board-wrap"><div class="board" id="color-board"></div></div>
+            <p class="tiny faint" style="margin-top:10px">Click a key to paint it, then push the table to the board.</p>
+          </div>
+        </div>
+
+        <aside class="inspector">
+          <div class="card">
+            <div class="card-title"><h2>Settings</h2></div>
+            <div class="field">
+              <label for="light-profile">Onboard profile</label>
+              <select id="light-profile">
+                <option value="0">Profile 1</option>
+                <option value="1">Profile 2</option>
+                <option value="2">Profile 3</option>
+              </select>
+              <p class="tiny faint" style="margin-top:5px">Each profile is a separate slot in the keyboard's flash.</p>
+            </div>
+            <div class="field">
+              <label for="light-brightness">Brightness <span class="mono faint" id="brightness-value"></span></label>
+              <input type="range" id="light-brightness" min="0" max="4" step="1">
+            </div>
+            <div class="field">
+              <label for="light-speed">Speed <span class="mono faint" id="speed-value"></span></label>
+              <input type="range" id="light-speed" min="0" max="4" step="1">
+            </div>
+            <div class="field">
+              <label for="light-direction">Direction</label>
+              <select id="light-direction">
+                <option value="0">Right to Left</option>
+                <option value="1">Left to Right</option>
+                <option value="2">Outer Inward</option>
+                <option value="3">Inner Outward</option>
+                <option value="4">Top to Bottom</option>
+                <option value="5">Bottom to Top</option>
+                <option value="6">Clockwise</option>
+                <option value="7">Anticlockwise</option>
+                <option value="255">Off / unset</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Main colour</label>
+              <div class="row">
+                <input type="color" id="light-color" value="#8000ff">
+                <span class="mono tiny faint" id="light-color-value"></span>
+              </div>
+            </div>
+            <div class="field">
+              <label>Light group</label>
+              <select id="light-group">
+                <option value="0">Group 0</option>
+                <option value="1">Group 1</option>
+                <option value="2">Group 2</option>
+                <option value="3">Group 3</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="tiny dim" style="display:flex;gap:8px;align-items:center">
+                <input type="checkbox" id="rainbow-mode"> Rainbow cycle
+              </label>
+              <label class="tiny dim" style="display:flex;gap:8px;align-items:center;margin-top:6px">
+                <input type="checkbox" id="lock-win"> Win lock
+              </label>
+              <label class="tiny dim" style="display:flex;gap:8px;align-items:center;margin-top:6px">
+                <input type="checkbox" id="wasd-mode"> WASD game mode
+              </label>
+              <label class="tiny dim" style="display:flex;gap:8px;align-items:center;margin-top:6px">
+                <input type="checkbox" id="six-key-mode"> 6K / NK no-conflict
+              </label>
+            </div>
+            <div class="field">
+              <label for="report-rate">Report rate</label>
+              <select id="report-rate">
+                <option value="0">125 Hz</option>
+                <option value="1">250 Hz</option>
+                <option value="2">500 Hz</option>
+                <option value="3">1000 Hz</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="hit-rate">Hit rate</label>
+              <select id="hit-rate">
+                <option value="0">0</option><option value="1">1</option><option value="2">2</option>
+                <option value="3">3</option><option value="4">4</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="hit-delay">Hit delay</label>
+              <select id="hit-delay">
+                <option value="0">0</option><option value="1">1</option><option value="2">2</option>
+                <option value="3">3</option><option value="4">4</option>
+              </select>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- GAME -->
+    <div class="panel" id="panel-game" role="tabpanel" aria-labelledby="tab-game" data-panel="game">
+      <div class="split">
+        <div>
+          <div class="card">
+            <div class="card-title">
+              <h2>Games</h2>
+              <div class="row">
+                <span class="tiny dim"><span id="game-score-label">Score</span> <span class="mono" id="game-score">0</span></span>
+                <button class="btn btn-sm btn-primary" id="game-start">Start</button>
+                <button class="btn btn-sm btn-ghost" id="game-new">New</button>
+                <button class="btn btn-sm btn-ghost" id="game-stop">Stop</button>
+              </div>
+            </div>
+            <div class="game-picker" role="group" aria-label="Games">
+              <button class="btn btn-sm" data-game="snake" aria-pressed="true">Snake</button>
+              <button class="btn btn-sm" data-game="lights" aria-pressed="false">Lights Out</button>
+              <button class="btn btn-sm" data-game="memory" aria-pressed="false">Memory</button>
+              <button class="btn btn-sm" data-game="reaction" aria-pressed="false">Reaction</button>
+            </div>
+            <div class="row game-controls">
+              <label class="tiny dim" id="game-speed-row" style="display:flex;gap:8px;align-items:center">
+                Speed
+                <input type="range" id="game-speed" min="70" max="600" step="10" value="150" style="width:130px">
+                <span class="mono faint" id="game-speed-value">150 ms</span>
+              </label>
+              <div class="game-pad" id="game-pad">
+                <button class="btn btn-sm" data-dir="up" aria-label="Up">↑</button>
+                <button class="btn btn-sm" data-dir="left" aria-label="Left">←</button>
+                <button class="btn btn-sm" data-dir="down" aria-label="Down">↓</button>
+                <button class="btn btn-sm" data-dir="right" aria-label="Right">→</button>
+              </div>
+              <span class="tiny faint" id="game-status">The keyboard is the screen.</span>
+            </div>
+            <div class="board-wrap"><div class="board" id="game-board"></div></div>
+            <p class="tiny faint" style="margin-top:10px" id="game-hint">Arrow keys or WASD steer it.</p>
+          </div>
+        </div>
+        <aside class="inspector">
+          <div class="card">
+            <div class="card-title"><h2>How it plays</h2></div>
+            <p class="tiny dim">The games play on the board's own keys, so they follow the real layout, gaps included. 83 keys have a colour slot and can be lit, so those are the field.</p>
+            <p class="tiny dim" style="margin-top:8px">Press <b>Stop</b> to hand the board back to the lighting settings.</p>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- MACROS -->
+    <div class="panel" id="panel-macros" role="tabpanel" aria-labelledby="tab-macros" data-panel="macros">
+      <div class="split">
+        <div>
+          <div class="card">
+            <div class="card-title">
+              <h2>Macros</h2>
+              <div class="row">
+                <button class="btn btn-sm btn-ghost" id="new-macro-btn">New</button>
+                <button class="btn btn-sm btn-primary" id="apply-macros-btn">Push to keyboard</button>
+              </div>
+            </div>
+            <div class="macro-list" id="macro-list"></div>
+            <p class="tiny faint" style="margin-top:10px" id="macro-note"></p>
+          </div>
+        </div>
+
+        <aside class="inspector">
+          <div class="card">
+            <div class="card-title">
+              <h2 id="macro-title">Steps</h2>
+              <span class="mono tiny faint" id="macro-replay"></span>
+            </div>
+            <div class="field">
+              <label for="macro-name">Name</label>
+              <input type="text" id="macro-name" placeholder="Macro name">
+            </div>
+            <div class="field">
+              <label for="macro-replay-input">Replay count</label>
+              <input type="number" id="macro-replay-input" min="1" max="99" value="1">
+            </div>
+            <div class="field">
+              <label for="macro-loop-type">Loop type</label>
+              <select id="macro-loop-type">
+                <option value="0">Execute N times</option>
+                <option value="1">Loop while held</option>
+                <option value="2">Loop until same key pressed</option>
+              </select>
+            </div>
+            <div class="steps" id="macro-steps"></div>
+            <div class="row" style="margin-top:10px">
+              <button class="btn btn-sm grow" id="add-step-btn">Add step</button>
+              <button class="btn btn-sm grow" id="record-btn">Record</button>
+              <button class="btn btn-sm btn-danger btn-ghost" id="delete-macro-btn">Delete macro</button>
+            </div>
+            <p class="tiny faint" style="margin-top:10px">
+              Assign a macro to a key from the Keys tab, then push the list.
+            </p>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- DEVICE -->
+    <div class="panel" id="panel-device" role="tabpanel" aria-labelledby="tab-device" data-panel="device">
+      <div class="split">
+        <div>
+          <div class="card" style="margin-bottom:12px">
+            <div class="card-title"><h2>Protocol console</h2></div>
+            <div class="row" style="margin-bottom:10px; flex-wrap:wrap">
+              <input class="mono" style="width:90px" type="text" id="console-cmd" value="0x03" aria-label="Command">
+              <input class="mono" style="width:80px" type="text" id="console-len" value="34" aria-label="Length">
+              <input class="mono grow" type="text" id="console-args" placeholder="args, hex, comma separated" aria-label="Arguments">
+              <button class="btn btn-sm btn-primary" id="console-send">Send</button>
+            </div>
+            <div class="console-out" id="console-out" aria-live="polite" aria-label="Protocol console output"></div>
+            <p class="tiny faint" style="margin-top:8px">Raw frames on the 0xFF1C vendor collection, report id 4.</p>
+          </div>
+
+          <div class="card">
+            <div class="card-title"><h2>Backups</h2></div>
+            <div class="row">
+              <button class="btn btn-sm" id="export-2-btn">Export profile</button>
+              <button class="btn btn-sm" id="import-2-btn">Import profile</button>
+              <button class="btn btn-sm btn-danger" id="reset-btn">Factory reset</button>
+            </div>
+            <p class="tiny faint" style="margin-top:8px">Factory reset clears every layer, colour and macro.</p>
+          </div>
+        </div>
+
+        <aside class="inspector">
+          <div class="card">
+            <div class="card-title"><h2>Device report</h2></div>
+            <div class="stat-row" style="margin-bottom:12px">
+              <div class="stat"><b id="s-fw">—</b><span>firmware</span></div>
+              <div class="stat"><b id="s-mode">—</b><span>effect</span></div>
+              <div class="stat"><b id="s-keys">—</b><span>slots</span></div>
+            </div>
+            <dl class="kv" id="report-kv"></dl>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+  </section>
+</main>
+
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+<script type="module" src="./app.js"></script>
+</body>
+</html>
