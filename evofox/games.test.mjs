@@ -11,7 +11,7 @@ import { buildField, neighbour, neighbours } from './web/games/board.js';
 import { SnakeGame } from './web/games/snake.js';
 import { LightsOut } from './web/games/lights-out.js';
 import { MemoryGame } from './web/games/memory.js';
-import { ReactionGame } from './web/games/reaction.js';
+import { ReactionGame, REACTION_TARGETS } from './web/games/reaction.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const vendor = JSON.parse(fs.readFileSync(path.join(here, 'layout', '320f_5055_2.json'), 'utf8'));
@@ -33,7 +33,7 @@ assert.equal(neighbours(field, field.rows[1][0]).length, 3, 'the first key has t
 
 const snake = new SnakeGame(field, { random: () => 0 });
 snake.start();
-assert.equal(snake.status, 'running');
+assert.equal(snake.phase, 'running');
 assert.equal(snake.head.name, '7', 'the snake starts in the middle of the number row');
 snake.step();
 assert.equal(snake.head.name, '8');
@@ -58,7 +58,7 @@ const edge = new SnakeGame(field, { random: () => 0 });
 edge.start();
 edge.snake = [field.rows[1][field.rows[1].length - 1]];
 edge.direction = 'right';
-assert.equal(edge.step().status, 'over', 'no key to the right means the game is over');
+assert.equal(edge.step().phase, 'over', 'no key to the right means the game is over');
 
 // ---- lights out -----------------------------------------------------------
 
@@ -131,5 +131,17 @@ clock = 2000;
 reaction.press(targetKey);
 assert.equal(reaction.misses, 1, 'pressing before the target appears is a miss');
 assert.equal(reaction.info().label, 'best');
+
+// a round is ten targets, and then the game is over
+const round = new ReactionGame(field, { random: () => 0, now: () => clock });
+round.start();
+for (let i = 0; i < REACTION_TARGETS; i++) {
+  clock += 2000;
+  round.tick();
+  round.press(round.target);
+}
+assert.equal(round.phase, 'over', 'the round ends after ten targets');
+assert.equal(round.times.length, REACTION_TARGETS, 'every target was hit');
+assert.ok(round.info().text.startsWith('Round over'), 'the result is reported');
 
 console.log('ok: board helpers, snake, lights out, memory and reaction');

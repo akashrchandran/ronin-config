@@ -342,6 +342,14 @@ Media keys (`type 48`) resolve through this table (usage, sub-code → name):
 The vendor app wraps keymap / colour / macro writes in
 `start comm → write… → stop comm`.
 
+That whole conversation has to arrive as one uninterrupted run of frames. The
+keyboard keeps a small state machine across the frames of a conversation, so a
+second conversation started in the middle of one — a colour write landing
+between the `start comm` and the `stop comm` of a function write, say — leaves
+the keyboard with half of each applied. The web app serialises whole
+conversations rather than single frames for exactly this reason; writing a
+single frame at a time is enough to corrupt a write.
+
 ---
 
 ## 7. The web app's own API surface
@@ -522,12 +530,20 @@ Every tick writes the per-key colour table: whatever the game lit, everything
 else is dark. The board has to run the per-key mode for any of it to show, so
 a game switches it and puts the previous effect back when it stops.
 
+**When a game ends, the whole board flashes red.** The snake hits a wall, the
+memory game gets a key wrong, the reaction round runs out of targets, or the
+lights-out puzzle is solved: the table goes all red and blinks, so the board
+itself says the game is over instead of the browser window. The flash keeps
+going until **Stop** hands the board back to the lighting. The blink is paced
+by the writes themselves — a full table takes about 160 ms to send, so the
+flash alternates roughly every 200 ms.
+
 | Game | Rules |
 |---|---|
 | **Snake** | The classic. Arrow keys or WASD steer it, the head is white, the body red, the food green. The speed slider goes from 70 ms to 600 ms a step. |
 | **Lights Out** | Pressing a key toggles it and its neighbours; the goal is to get every light out. The puzzle is built by pressing keys on an empty board, so it is always solvable. The board's own shape is the puzzle. |
 | **Memory** | Simon. The board flashes a sequence and you repeat it; the sequence grows by one every round. |
-| **Reaction** | A key lights after a random delay and you have to hit it. Pressing early or hitting the wrong key is a miss; the best and average times are shown. |
+| **Reaction** | A key lights after a random delay and you have to hit it. Pressing early or hitting the wrong key is a miss. A round is ten targets; the best and average times are shown. |
 
 The rules live in `web/games/` without any DOM, so they can be tested on
 their own: `node games.test.mjs` covers the field, the neighbours and all

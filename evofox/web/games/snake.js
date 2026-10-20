@@ -23,17 +23,17 @@ export class SnakeGame {
     this.direction = 'right';
     this.turn = null;
     this.score = 0;
-    this.status = 'ready';
+    this.phase = 'ready';
     this.food = this.placeFood();
   }
 
   start() {
-    if (this.status === 'over') this.reset();
-    this.status = 'running';
+    if (this.phase === 'over') this.reset();
+    this.phase = 'running';
   }
 
   stop() {
-    this.status = 'ready';
+    this.phase = 'ready';
   }
 
   /** Queue a turn. A direct reverse is ignored, as in the arcade game. */
@@ -45,7 +45,7 @@ export class SnakeGame {
 
   /** Advance the game one step. */
   step() {
-    if (this.status !== 'running') return { status: this.status, score: this.score };
+    if (this.phase !== 'running') return { phase: this.phase, score: this.score };
     if (this.turn) {
       this.direction = this.turn;
       this.turn = null;
@@ -53,12 +53,12 @@ export class SnakeGame {
     const head = this.snake[0];
     const next = neighbour(this.field, head, this.direction);
     if (!next) {
-      this.status = 'over';
-      return { status: 'over', score: this.score };
+      this.phase = 'over';
+      return { phase: 'over', score: this.score };
     }
     if (this.snake.some(part => part === next)) {
-      this.status = 'over';
-      return { status: 'over', score: this.score };
+      this.phase = 'over';
+      return { phase: 'over', score: this.score };
     }
     const ate = next === this.food;
     this.snake.unshift(next);
@@ -68,7 +68,7 @@ export class SnakeGame {
     } else {
       this.snake.pop();
     }
-    return { status: 'running', score: this.score, ate };
+    return { phase: 'running', score: this.score, ate };
   }
 
   /** The app's clock: one step per tick. */
@@ -95,7 +95,7 @@ export class SnakeGame {
 
   info() {
     return {
-      text: this.status === 'over' ? `Game over. Score ${this.score}.` : 'Playing.',
+      text: this.phase === 'over' ? `Game over. Score ${this.score}.` : 'Playing.',
       score: this.score,
       label: 'score',
     };

@@ -657,6 +657,13 @@ let gameTimer = null;
 let gameRestore = null;
 let currentGame = 'snake';
 
+/** The game-over flash: every key red, blinking, until the player stops it. */
+const GAME_OVER_COLOUR = '#ff0000';
+/** The phases a game ends in: the snake and memory die, lights out is solved. */
+const GAME_END_PHASES = new Set(['over', 'solved']);
+let gameFinished = false;
+let flashOn = false;
+
 /** The keys the games may use: only the ones the firmware gives a colour. */
 function gameField() {
   if (!state.board) return null;
@@ -678,6 +685,13 @@ function gameHexToRgb(hex) {
 function gameColours() {
   const colours = new Array(P.COLOR_KEYS).fill(0).map(() => ({ r: 0, g: 0, b: 0 }));
   if (!game) return colours;
+  if (gameFinished) {
+    // The game is over: every key red, blinking, so the board says so.
+    if (flashOn) {
+      for (let i = 0; i < colours.length; i++) colours[i] = { r: P.RGB_MAX, g: 0, b: 0 };
+    }
+    return colours;
+  }
   for (const [key, hex] of game.paint()) {
     const index = state.colourIndex?.get(key.slot);
     if (index === undefined) continue;
@@ -692,6 +706,10 @@ function renderGame() {
   renderBoard($('#game-board'), state.board, {
     label: 'Game',
     colorFor: slot => {
+      if (gameFinished) {
+        // Only the keys the firmware can light: the rest have no slot.
+        return flashOn && state.colourIndex?.has(slot) ? GAME_OVER_COLOUR : null;
+      }
       for (const [key, hex] of lit) if (key.slot === slot) return hex;
       return null;
     },
@@ -704,6 +722,10 @@ function updateGameInfo() {
   $('#game-score-label').textContent = info.label;
   $('#game-score').textContent = `${info.score}${info.unit || ''}`;
   $('#game-status').textContent = info.text;
+  if (gameFinished) {
+    $('#game-hint').textContent =
+      'The board is flashing: the game is over. Press Stop to hand it back to the lighting.';
+  }
 }
 
 /** Put the board into the per-key mode, which is where the games live. */
@@ -722,43 +744,57 @@ async function ensureCustomMode() {
     lightG: state.func.lightG,
     lightB: state.func.lightB,
   }, state.func.raw);
-  await serialise(() => state.transport.send(0, P.CMD.START_COMM, 0, [], 1));
-  await sleep(12);
-  await serialise(() => state.transport.send(0, P.CMD.SET_FUNC_INFO, 56,
-    [offset & 0xff, (offset >> 8) & 0xff, 0, ...block]));
-  await sleep(12);
-  await serialise(() => state.transport.send(0, P.CMD.STOP_COMM, 0, [], 2));
+  // The whole conversation is one queue entry: a sequence that interleaves
+  // with another one leaves the keyboard in a half-written state.
+  await serialise(async () => {
+    await state.transport.send(0, P.CMD.START_COMM, 0, [], 1);
+    await sleep(12);
+    await state.transport.send(0, P.CMD.SET_FUNC_INFO, 56,
+      [offset & 0xff, (offset >> 8) & 0xff, 0, ...block]);
+    await sleep(12);
+    await state.transport.send(0, P.CMD.STOP_COMM, 0, [], 2);
+  });
   state.func.lightMode = P.MODE_CUSTOM;
 }
 
 async function writeColourTable(colours) {
   const bytes = P.serializeColors(colours);
-  await serialise(() => state.transport.send(0, P.CMD.START_COMM, 0, [], 1));
-  await sleep(12);
-  for (const chunk of P.chunked(bytes)) {
-    await serialise(() => state.transport.send(0, P.CMD.SET_USER_KEY_COLORS, chunk.length,
-      [chunk.offset & 0xff, (chunk.offset >> 8) & 0xff, 0, ...chunk.bytes]));
-  }
-  await sleep(12);
-  await serialise(() => state.transport.send(0, P.CMD.STOP_COMM, 0, [], 2));
+  await serialise(async () => {
+    await state.transport.send(0, P.CMD.START_COMM, 0, [], 1);
+    await sleep(12);
+    for (const chunk of P.chunked(bytes)) {
+      await state.transport.send(0, P.CMD.SET_USER_KEY_COLORS, chunk.length,
+        [chunk.offset & 0xff, (chunk.offset >> 8) & 0xff, 0, ...chunk.bytes]);
+    }
+    await sleep(12);
+    await state.transport.send(0, P.CMD.STOP_COMM, 0, [], 2);
+  });
 }
 
 async function gameTick() {
   if (!game) return;
-  game.tick();
+  if (gameFinished) {
+    // The game is over and the board is flashing: keep the blink going.
+    flashOn = !flashOn;
+  } else {
+    game.tick();
+    if (GAME_END_PHASES.has(game.phase)) {
+      gameFinished = true;
+      flashOn = true;
+    }
+  }
   renderGame();
   updateGameInfo();
   if (state.transport) await writeColourTable(gameColours());
-  if (game.phase === 'over' || game.phase === 'solved') {
-    await stopGame();
-    return;
-  }
   scheduleGame();
 }
 
 function scheduleGame() {
   clearTimeout(gameTimer);
-  gameTimer = setTimeout(gameTick, Number($('#game-speed').value) || 150);
+  // The flash writes the whole board every time, so it runs on its own
+  // clock: the write itself sets the pace of the blink.
+  const delay = gameFinished ? 30 : (Number($('#game-speed').value) || 150);
+  gameTimer = setTimeout(gameTick, delay);
 }
 
 async function startGame() {
@@ -768,6 +804,9 @@ async function startGame() {
   gameRestore = state.func ? { ...state.func } : null;
   game = GAMES[currentGame].create(field);
   game.start();
+  gameFinished = false;
+  flashOn = false;
+  $('#game-hint').textContent = GAMES[currentGame].hint;
   await ensureCustomMode();
   $('#game-start').disabled = true;
   renderGame();
@@ -781,7 +820,10 @@ async function stopGame() {
   gameTimer = null;
   const wasRunning = !!game;
   game = null;
+  gameFinished = false;
+  flashOn = false;
   $('#game-start').disabled = false;
+  $('#game-hint').textContent = GAMES[currentGame].hint;
   if (!wasRunning) return;
   if (state.transport) {
     await writeColourTable(state.colors);
@@ -1074,12 +1116,14 @@ async function applyLighting() {
       hitRate: state.func.hitRate,
       hitDelay: state.func.hitDelay,
     }, state.func.raw);
-    await serialise(() => state.transport.send(0, P.CMD.START_COMM, 0, [], 1));
-    await sleep(12);
-    await serialise(() => state.transport.send(0, P.CMD.SET_FUNC_INFO, 56,
-      [offset & 0xff, (offset >> 8) & 0xff, 0, ...block]));
-    await sleep(12);
-    await serialise(() => state.transport.send(0, P.CMD.STOP_COMM, 0, [], 2));
+    await serialise(async () => {
+      await state.transport.send(0, P.CMD.START_COMM, 0, [], 1);
+      await sleep(12);
+      await state.transport.send(0, P.CMD.SET_FUNC_INFO, 56,
+        [offset & 0xff, (offset >> 8) & 0xff, 0, ...block]);
+      await sleep(12);
+      await state.transport.send(0, P.CMD.STOP_COMM, 0, [], 2);
+    });
     state.dirty.func = false;
     renderDirty();
     toast(`Lighting written to profile ${profile + 1}`, 'ok');
